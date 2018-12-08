@@ -89,3 +89,17 @@ class File:
 
     def get(self, name):
         raise IllegalFileSystemOperation('File objects cannot contain other items')
+
+
+def create_object(name, fs_type):
+    if fs_type == 'file':
+        return File(name)
+    elif fs_type == 'drive':
+        return Drive(name)
+    elif fs_type == 'folder':
+        return Folder(name)
+    elif fs_type == 'zip':
+        return Zip(name)
+    else:
+        raise IllegalFileSystemOperation(
+            'You may only create objects of the following types: File, Drive, Folder, Zip')

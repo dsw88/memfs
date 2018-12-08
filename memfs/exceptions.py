@@ -1,6 +1,8 @@
 """
 This file contains the exceptions raised by the memfs library
 """
+
+
 class PathNotFoundException(Exception):
     pass
 
