@@ -1,5 +1,7 @@
 MemFs
 =====
+A fun little in-memory file system.
+
 This is a toy library, don't even think about using it in production!
 
 Usage
