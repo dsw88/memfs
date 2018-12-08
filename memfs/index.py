@@ -1,112 +1,11 @@
 """
 This file contains the code for the MemFs module public contract
+
+Assumptions:
+ Concurrency is not a concern (i.e. methods like 'move' don't need to be atomic)
 """
-import math
-
-# Assumptions:
-#  Concurrency is not a concern (i.e. methods like 'move' don't need to be atomic)
-#  The only supported interface
-
-
-class Container:
-    def __init__(self, name, type):
-        self.name = name
-        self.type = type
-        self.parent = None
-        self.children = {}
-
-    @property
-    def size(self):
-        size = 0
-        for child_name in self.children:
-            child = self.children[child_name]  # TODO - Is there a more Pythonic way to do this?
-            size += child.size
-        return size
-
-    def get(self, name):
-        return self.children.get(name)
-
-    @property
-    def path(self):
-        if not self.parent:
-            raise IllegalFileSystemOperation('The given file object is not present in the file system hierarchy')
-        if self.parent.path == '':
-            return self.name
-        else:
-            return "{}\\{}".format(self.parent.path, self.name)
-
-
-class FileSystem:
-    def __init__(self):
-        self.children = {}
-        self.type = 'filesystem'
-        self.path = ''
-
-    def get(self, name):
-        return self.children.get(name)
-
-    def reset(self):
-        self.children = {}
-
-
-class Drive(Container):
-    def __init__(self, name):
-        super(Drive, self).__init__(name, 'drive')
-
-
-class Folder(Container):
-    def __init__(self, name):
-        super(Folder, self).__init__(name, 'folder')
-
-
-class Zip(Container):
-    def __init__(self, name):
-        super(Zip, self).__init__(name, 'zip')
-
-    @property
-    def size(self):
-        return math.ceil(super(Zip, self).size / 2)
-
-
-class File():
-    def __init__(self, name):
-        self.name = name
-        self.type = 'file'
-        self.parent = None
-        self.content = None
-
-    @property
-    def size(self):
-        if self.content:
-            return len(self.content.encode('utf-8'))
-        else:
-            return 0
-
-    def get(self, name):
-        raise IllegalFileSystemOperation('File objects cannot contain other items')
-
-    @property
-    def path(self):
-        if not self.parent:
-            raise IllegalFileSystemOperation('The given file object is not present in the file system hierarchy')
-        return "{}\\{}".format(self.parent.path, self.name)
-
-
-class PathNotFoundException(Exception):
-    pass
-
-
-class PathAlreadyExistsException(Exception):
-    pass
-
-
-class IllegalFileSystemOperation(Exception):
-    pass
-
-
-class InvalidWriteException(Exception):
-    pass
-
+from .filesystem import FileSystem, Drive, Folder, File, Zip
+from .exceptions import IllegalFileSystemOperation, InvalidWriteException, PathNotFoundException, PathAlreadyExistsException
 
 # Only provide a single instance of a file system to consumers of this module
 _file_system = FileSystem()
@@ -236,6 +135,9 @@ def write_to_file(path, content):
     write_object.content = content
 
 
+# ------------------------------------------------------
+# Private functions
+# ------------------------------------------------------
 def _get_object(path, parent):
     parts = path.split('\\', 1)
     child = parent.get(parts[0])
