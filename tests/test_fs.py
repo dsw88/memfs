@@ -1,14 +1,14 @@
 import memfs
-from memfs import IllegalFileSystemOperation
+from memfs import IllegalFileSystemOperation, PathNotFoundException, PathAlreadyExistsException, InvalidWriteException
 
 
-def setup_function(function):
-    memfs.reset()
+def setup_function():
+    memfs.index._file_system.reset()
 
 
-def test_create_delete():
+def test_create():
     """
-    In this test, the following file structure is created:
+    Create the following file structure and verify its properties:
 
     Drive1
     |_Folder1
@@ -19,9 +19,6 @@ def test_create_delete():
       |_Folder4
       |_File2
     """
-    #
-    # Create objects
-    #
     drive_name = 'Drive1'
     drive = memfs.create('drive', drive_name)
     assert drive.type == 'drive'
@@ -94,22 +91,91 @@ def test_create_delete():
     assert len(folder3.children) == 1
     assert len(folder4.children) == 0
 
-    #
-    # Delete objects
-    #
-    #
-    # Peek into the internals to make sure the state is being updated properly
-    # assert len(memfs.index._fs_objects) == 8
-    assert len(folder3.children) == 1
-    memfs.delete(file1.path)
-    assert len(folder3.children) == 0
-    assert len(folder2.children) == 1
-    memfs.delete(folder3.path)
-    assert len(folder2.children) == 0
-    assert len(drive.children) == 3
-    memfs.delete(zip1.path)
-    assert len(drive.children) == 2
+
+def test_write_non_existent_file():
+    """
+    Writing to a non-existent file raises an error
+    """
+    drive = memfs.create('drive', "Drive")
+    try:
+        memfs.write_to_file("{}\\{}".format(drive.path, "FakeFile"), "Foundation")
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == PathNotFoundException
+
+
+def test_write_to_non_file():
+    """
+    Writing content to any non-file object should fail
+    """
+    drive = memfs.create('drive', "Drive")
+    try:
+        memfs.write_to_file(drive.path, "Foundation")
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == InvalidWriteException
+
+
+def test_delete():
+    """
+    Create and delete the following file structure:
+
+    Drive
+    |_Folder
+      |_Zip
+        |_File
+    """
+    # Setup
+    drive = memfs.create('drive', 'Drive')
+    folder = memfs.create('folder', 'Folder', drive.path)
+    zip_file = memfs.create('zip', 'Zip', folder.path)
+    file = memfs.create('file', 'File', zip_file.path)
+
+    # Test
+    assert len(zip_file.children) == 1
+    memfs.delete(file.path)
+    assert len(zip_file.children) == 0
+    assert len(folder.children) == 1
+    memfs.delete(zip_file.path)
+    assert len(folder.children) == 0
+    assert len(drive.children) == 1
+    memfs.delete(folder.path)
+    assert len(drive.children) == 0
     memfs.delete(drive.path)
+
+
+def test_non_existent_file():
+    """
+    Trying to delete a non-existent file returns an error
+    """
+    try:
+        memfs.delete('fake\\path')
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == PathNotFoundException
+
+
+def test_create_invalid_path():
+    """
+    The provided parent path must exist in order to create an object
+    """
+    try:
+        memfs.create('file', 'File', 'some\\nonexistent\\path')
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == PathNotFoundException
+
+
+def test_create_duplicate_path():
+    """
+    Objects cannot be created when an object with the same path already exists
+    """
+    memfs.create('drive', 'Drive')
+    try:
+        memfs.create('drive', 'Drive')
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == PathAlreadyExistsException
 
 
 def test_drive_root_level():
@@ -120,6 +186,7 @@ def test_drive_root_level():
     drive1 = memfs.create('drive', 'Drive1')
     try:
         memfs.create('drive', 'Drive2', drive1.path)
+        assert True == False  # Should not get here
     except Exception as e:
         assert type(e) == IllegalFileSystemOperation
 
@@ -131,6 +198,7 @@ def test_invalid_root_objects():
     """
     try:
         memfs.create('file', 'File1')
+        assert True == False  # Should not get here
     except Exception as e:
         assert type(e) == IllegalFileSystemOperation
 
@@ -195,6 +263,33 @@ def test_move_folder():
     assert file1.parent.name == folder1.name
 
 
+def test_move_non_existent_file():
+    """
+    Trying to move a non-existent source file should fail with an error
+    """
+    drive = memfs.create('drive', 'Drive1')
+    folder1 = memfs.create('folder', 'Folder1', drive.path)
+    try:
+        memfs.move("{}\\{}".format(drive.path, "FakeFile"), "{}\\{}".format(drive.path, folder1.name))
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == PathNotFoundException
+
+
+def test_move_already_exists_file():
+    """
+    You can't move a file to a path where one already exists (no overwrites)
+    """
+    drive = memfs.create('drive', 'Drive1')
+    file1 = memfs.create('file', 'File1', drive.path)
+    file2 = memfs.create('file', 'File2', drive.path)
+    try:
+        memfs.move(file1.path, file2.path)
+        assert True == False  # Should not get here
+    except Exception as e:
+        assert type(e) == PathAlreadyExistsException
+
+
 def test_move_drive():
     """
     Drives cannot be moved (they must be root entities)
@@ -218,9 +313,10 @@ def test_move_file_to_root():
     file1 = memfs.create('file',' File1', drive1.path)
     try:
         memfs.move(file1.path, file1.name)
-        assert True == False # Should not get here
+        assert True == False  # Should not get here
     except Exception as e:
         assert type(e) == IllegalFileSystemOperation
+
 
 def test_move_file_to_file():
     """

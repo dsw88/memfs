@@ -7,6 +7,7 @@ import math
 #  Concurrency is not a concern (i.e. methods like 'move' don't need to be atomic)
 #  The only supported interface
 
+
 class Container:
     def __init__(self, name, type):
         self.name = name
@@ -43,6 +44,9 @@ class FileSystem:
 
     def get(self, name):
         return self.children.get(name)
+
+    def reset(self):
+        self.children = {}
 
 
 class Drive(Container):
@@ -108,10 +112,6 @@ class InvalidWriteException(Exception):
 _file_system = FileSystem()
 
 
-def reset():
-    _file_system = FileSystem
-
-
 def create(fs_type, name, parent_path=''):
     """
     Create the object in the file system in the given parent path.
@@ -127,19 +127,22 @@ def create(fs_type, name, parent_path=''):
     :raises PathAlreadyExistsException: The path attempting to be created already exists.
     :raises IllegalFileSystemOperationException: The attempted action is not valid
     """
-    existing = _get_object("{}\\{}".format(parent_path, name), _file_system)
-    if existing:
-        raise PathAlreadyExistsException("The requested path to create already exists")
     if fs_type == 'drive':
+        if _get_object(name, _file_system):
+            raise PathAlreadyExistsException("The requested path to create already exists")
         if parent_path != '':
             raise IllegalFileSystemOperation('Drives may only be created at the root of the file system')
         new_object = _create_object(name, fs_type)
         new_object.parent = _file_system
         _file_system.children[name] = new_object
     else:
+        if _get_object("{}\\{}".format(parent_path, name), _file_system):
+            raise PathAlreadyExistsException("The requested path to create already exists")
         if parent_path == '':
             raise IllegalFileSystemOperation('Only drives may be created at the root of the filesystem')
         parent = _get_object(parent_path, _file_system)
+        if not parent:
+            raise PathNotFoundException('The requested parent path does not exist')
         if parent.type == 'file':
             raise IllegalFileSystemOperation('Files cannot contain other file system objects')
         new_object = _create_object(name, fs_type)
