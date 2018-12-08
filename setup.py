@@ -11,7 +11,8 @@ def get_requirements():
         return lines
 
 
-setup(name='memfs',
+setup(
+    name='memfs',
     version='0.0.1',
     description="Fun little in-memory file system for Python",
     long_description=long_description,

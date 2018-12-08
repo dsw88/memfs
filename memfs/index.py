@@ -4,7 +4,7 @@ This file contains the code for the MemFs module public contract
 Assumptions:
  Concurrency is not a concern (i.e. methods like 'move' don't need to be atomic)
 """
-from .filesystem import FileSystem, Drive, Folder, File, Zip, create_object
+from .filesystem import FileSystem, File, Drive, Zip, Folder
 from .exceptions import IllegalFileSystemOperation, InvalidWriteException, PathNotFoundException, PathAlreadyExistsException
 
 # Only provide a single instance of a file system to consumers of this module
@@ -18,19 +18,20 @@ def create(fs_type, name, parent_path=''):
     If you are creating a file, you must then use the write_to_file method to put content
     in the file.
 
-    :param fs_type: The type of object being created (i.e. drive, file, etc.)
+    :param fs_type: The type of object being created. Allowed values: 'drive', 'folder', 'zip', 'file'
     :param name: The name of the object to be created.
-    :param parent_path: The path of the parent object that will contain this object
+    :param parent_path: The path of the parent object that will contain this object.
     :returns: The created object (i.e. Drive, Folder, etc.)
     :raises PathNotFoundException: The parent path does not exist in the file system
     :raises PathAlreadyExistsException: The path attempting to be created already exists.
     :raises IllegalFileSystemOperationException: The attempted action is not valid
     """
-    # Enforce rules about where drives and files can go
-    new_path = _get_path(parent_path, name)
+    # Make sure the requested object doesn't already exist
+    new_path = _object_path(parent_path, name)
     if _get_object(new_path, _file_system):
         raise PathAlreadyExistsException("The requested path to create already exists")
 
+    # Enforce file system rules about root-level objects
     if fs_type == 'drive':
         if parent_path != '':
             raise IllegalFileSystemOperation('Drives may only be created at the root of the file system')
@@ -39,11 +40,13 @@ def create(fs_type, name, parent_path=''):
         if parent_path == '':
             raise IllegalFileSystemOperation('Only drives may be created at the root of the filesystem')
         parent = _get_object(parent_path, _file_system)
-        if not parent:
-            raise PathNotFoundException('The requested parent path does not exist')
+
+    # The given parent path must exist in the file system
+    if not parent:
+        raise PathNotFoundException('The requested parent path does not exist')
 
     # Create and link new file
-    new_object = create_object(name, fs_type)
+    new_object = _create_object(name, fs_type)
     new_object.parent = parent
     parent.children[new_object.name] = new_object
     return new_object
@@ -78,7 +81,7 @@ def move(src, dest):
     :param src: The source path of the object to move
     :param dest: The destination path to which the object should be moved
     :return: The moved object (i.e. Drive, Folder, etc.)
-    :raises PathNotFoundException: The given source path does not exist
+    :raises PathNotFoundException: The given source path does not exist, or the destination parent does not exist
     :raises PathAlreadyExistsException: The given destination path already exists.
     :raises IllegalFileSystemOperation: The attempted move action is not valid
     """
@@ -106,6 +109,7 @@ def move(src, dest):
     del src_object.parent.children[src_object.name]
     src_object.parent = dest_parent
     dest_parent.children[src_object.name] = src_object
+    return src_object
 
 
 def write_to_file(path, content):
@@ -134,7 +138,11 @@ def write_to_file(path, content):
     write_object.content = content
 
 
-def _get_path(parent_path, name):
+def _object_path(parent_path, name):
+    """
+    Given an object name and its parent path, constructs the full path to the child object.
+    The special case of a top-level object does not have the '\' character prefixed to the path
+    """
     return name if parent_path == '' else '{}\\{}'.format(parent_path, name)
 
 
@@ -146,10 +154,24 @@ def _get_parent(path):
 
 
 def _get_object(path, parent):
-    parts = path.split('\\', 1)
-    child = parent.get(parts[0])
-    if not child:
+    path_parts = path.split('\\', 1)
+    child = parent.get(path_parts[0])
+    if not child:  # The requested object does not exist
         return None
-    if len(parts) == 1:
+    if len(path_parts) == 1:  # Reached the child object we want
         return child
-    return _get_object(parts[1], child)
+    return _get_object(path_parts[1], child)
+
+
+def _create_object(name, fs_type):
+    if fs_type == 'file':
+        return File(name)
+    elif fs_type == 'drive':
+        return Drive(name)
+    elif fs_type == 'folder':
+        return Folder(name)
+    elif fs_type == 'zip':
+        return Zip(name)
+    else:
+        raise IllegalFileSystemOperation(
+            'You may only create objects of the following types: File, Drive, Folder, Zip')

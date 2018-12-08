@@ -6,9 +6,7 @@ from .exceptions import IllegalFileSystemOperation
 
 
 class Container:
-    """
-    A mixin-style class that makes an object behave as a container for other file system objects
-    """
+    """Mixin-style class that makes an object behave as a container for other file system objects"""
     def __init__(self, name, type):
         self.name = name
         self.type = type
@@ -89,17 +87,3 @@ class File:
 
     def get(self, name):
         raise IllegalFileSystemOperation('File objects cannot contain other items')
-
-
-def create_object(name, fs_type):
-    if fs_type == 'file':
-        return File(name)
-    elif fs_type == 'drive':
-        return Drive(name)
-    elif fs_type == 'folder':
-        return Folder(name)
-    elif fs_type == 'zip':
-        return Zip(name)
-    else:
-        raise IllegalFileSystemOperation(
-            'You may only create objects of the following types: File, Drive, Folder, Zip')
