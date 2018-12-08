@@ -26,28 +26,25 @@ def create(fs_type, name, parent_path=''):
     :raises PathAlreadyExistsException: The path attempting to be created already exists.
     :raises IllegalFileSystemOperationException: The attempted action is not valid
     """
+    # Enforce rules about where drives and files can go
+    new_path = _get_path(parent_path, name)
+    if _get_object(new_path, _file_system):
+        raise PathAlreadyExistsException("The requested path to create already exists")
+
     if fs_type == 'drive':
-        if _get_object(name, _file_system):
-            raise PathAlreadyExistsException("The requested path to create already exists")
         if parent_path != '':
             raise IllegalFileSystemOperation('Drives may only be created at the root of the file system')
         new_object = _create_object(name, fs_type)
-        new_object.parent = _file_system
-        _file_system.children[name] = new_object
+        return _link_object(new_object, _file_system)
     else:
-        if _get_object("{}\\{}".format(parent_path, name), _file_system):
-            raise PathAlreadyExistsException("The requested path to create already exists")
         if parent_path == '':
             raise IllegalFileSystemOperation('Only drives may be created at the root of the filesystem')
         parent = _get_object(parent_path, _file_system)
         if not parent:
             raise PathNotFoundException('The requested parent path does not exist')
-        if parent.type == 'file':
-            raise IllegalFileSystemOperation('Files cannot contain other file system objects')
+        # Create an link new file
         new_object = _create_object(name, fs_type)
-        new_object.parent = parent
-        parent.children[name] = new_object
-    return new_object
+        return _link_object(new_object, parent)
 
 
 def delete(path):
@@ -91,7 +88,6 @@ def move(src, dest):
         raise PathNotFoundException("The given source path does not exist")
     if _get_object(dest, _file_system):
         raise PathAlreadyExistsException("The given destination path already exists")
-    print(dest)
 
     # TODO - This is ugly
     dest_parts = dest.rsplit('\\', 1)
@@ -138,6 +134,10 @@ def write_to_file(path, content):
 # ------------------------------------------------------
 # Private functions
 # ------------------------------------------------------
+def _get_path(parent_path, name):
+    return name if parent_path == '' else '{}\\{}'.format(parent_path, name)
+
+
 def _get_object(path, parent):
     parts = path.split('\\', 1)
     child = parent.get(parts[0])
@@ -160,3 +160,9 @@ def _create_object(name, fs_type):
         return Zip(name)
     else:
         raise IllegalFileSystemOperation('You may only create objects of the following types: File, Drive, Folder, Zip')
+
+
+def _link_object(obj, parent):
+    obj.parent = parent
+    parent.children[obj.name] = obj
+    return obj

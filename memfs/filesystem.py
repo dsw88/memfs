@@ -81,11 +81,11 @@ class File:
         else:
             return 0
 
-    def get(self, name):
-        raise IllegalFileSystemOperation('File objects cannot contain other items')
-
     @property
     def path(self):
         if not self.parent:
             raise IllegalFileSystemOperation('The given file object is not present in the file system hierarchy')
         return "{}\\{}".format(self.parent.path, self.name)
+
+    def get(self, name):
+        raise IllegalFileSystemOperation('File objects cannot contain other items')
